@@ -4,8 +4,8 @@ import { defaultClientConditions, type Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import { buildCsp } from './src/csp.ts';
 
-// GitHub Pages serves the site from /<repo>/.
-const BASE = '/GestureSign/';
+// GitHub Pages serves the site from /M-ABLE/.
+const BASE = process.env.VITE_BASE || '/M-ABLE/';
 
 /**
  * Adds the CSP meta tag to builds only (production and the e2e test build).
@@ -14,7 +14,7 @@ const BASE = '/GestureSign/';
  */
 function contentSecurityPolicy(): Plugin {
   return {
-    name: 'gesturesign:csp-meta',
+    name: 'm-able:csp-meta',
     apply: 'build',
     transformIndexHtml: {
       order: 'post',

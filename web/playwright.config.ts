@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const ci = Boolean(process.env['CI']);
 const PORT = 5334;
-export const BASE_URL = `http://localhost:${PORT}/GestureSign/`;
+export const BASE_URL = `http://localhost:${PORT}/M-ABLE/`;
 
 /**
  * Runs against `vite build --mode test` (npm run test:e2e builds it first):
@@ -12,6 +12,7 @@ export const BASE_URL = `http://localhost:${PORT}/GestureSign/`;
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  workers: ci ? 2 : 2,
   forbidOnly: ci,
   retries: ci ? 1 : 0,
   timeout: 45_000,

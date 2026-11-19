@@ -1,18 +1,26 @@
-import { Camera, CameraOff, Film, Hand, LoaderCircle, Play, RotateCcw, Square } from 'lucide-react';
+import {
+  Camera,
+  CameraOff,
+  Eye,
+  EyeOff,
+  Film,
+  FlipHorizontal,
+  Hand,
+  LoaderCircle,
+  Play,
+  RotateCcw,
+  Square,
+  Video,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Session, SessionSnapshot } from '../app/session';
-import { CAMERA_MESSAGES } from '../lib/camera';
+import { CAMERA_MESSAGES, listCameraDevices, type CameraDevice } from '../lib/camera';
 import { drawLandmarks } from '../lib/overlay';
 import { handsMissing } from '../ml/landmarks';
 import type { FrameStatus } from '../ml/segmenter';
 import { ReplayPicker } from './ReplayPicker';
 import { Button } from './ui';
 
-/**
- * Replay clips come from asl-signs, which was filmed on phones held upright,
- * so their landmarks are drawn in a portrait 9:16 box to keep the signer's
- * proportions (and the whole frame) on the stage.
- */
 const REPLAY_ASPECT = 9 / 16;
 
 const STATUS_TEXT: Record<FrameStatus, string> = {
@@ -31,11 +39,11 @@ function StatusPill({ snap }: { snap: SessionSnapshot }) {
   const tone = signing
     ? 'bg-accent text-accent-ink'
     : status === 'ok'
-      ? 'bg-emerald-500/90 text-white'
-      : 'bg-black/55 text-white';
+      ? 'bg-emerald-700/90 text-white'
+      : 'bg-black/60 text-white';
   return (
     <p
-      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap shadow backdrop-blur ${tone}`}
+      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap shadow-sm backdrop-blur ${tone}`}
       data-testid="tracking-status"
     >
       <span
@@ -51,6 +59,10 @@ export function Stage({ session, snap }: { session: Session; snap: SessionSnapsh
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [showReplay, setShowReplay] = useState(false);
+  const [showLandmarks, setShowLandmarks] = useState(true);
+  const [mirrored, setMirrored] = useState(true);
+  const [devices, setDevices] = useState<CameraDevice[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<string>('');
 
   useEffect(() => {
     session.attachVideo(videoRef.current);
@@ -59,7 +71,23 @@ export function Stage({ session, snap }: { session: Session; snap: SessionSnapsh
     };
   }, [session]);
 
-  // Keep the canvas backing store at the element's size times the pixel ratio.
+  // Load available camera devices
+  useEffect(() => {
+    let active = true;
+    void listCameraDevices().then((devs) => {
+      if (active && devs.length > 0) {
+        setDevices(devs);
+        if (!selectedDevice) {
+          setSelectedDevice(devs[0]?.deviceId ?? '');
+        }
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [selectedDevice, snap.source]);
+
+  // Keep canvas backing store responsive to DPR
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -80,8 +108,6 @@ export function Stage({ session, snap }: { session: Session; snap: SessionSnapsh
     let pending: Float32Array | null = null;
     let raf = 0;
     const off = session.onFrame((frame, source) => {
-      // Replays start and end with hands down (and a tail of empty frames so the
-      // recogniser sees the sign end); keep the last signing pose on screen.
       if (source !== 'camera' && handsMissing(frame)) return;
       pending = frame;
       if (raf) return;
@@ -94,16 +120,21 @@ export function Stage({ session, snap }: { session: Session; snap: SessionSnapsh
           source === 'camera' && video && video.videoWidth
             ? video.videoWidth / video.videoHeight
             : REPLAY_ASPECT;
-        drawLandmarks(ctx, pending, undefined, { aspect });
+
+        if (showLandmarks) {
+          drawLandmarks(ctx, pending, undefined, { aspect });
+        } else {
+          ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        }
       });
     });
     return () => {
       off();
       cancelAnimationFrame(raf);
     };
-  }, [session]);
+  }, [session, showLandmarks]);
 
-  // Clear the overlay when the source stops.
+  // Clear overlay when stopped
   useEffect(() => {
     if (snap.source === 'off') {
       const canvas = canvasRef.current;
@@ -120,63 +151,70 @@ export function Stage({ session, snap }: { session: Session; snap: SessionSnapsh
     setShowReplay(true);
   };
 
+  const handleDeviceChange = (deviceId: string) => {
+    setSelectedDevice(deviceId);
+    if (live) {
+      session.stopCamera();
+      void session.startCamera(deviceId);
+    }
+  };
+
   return (
     <section aria-labelledby="stage-heading" className="min-w-0">
       <h2 id="stage-heading" className="sr-only">
         Camera and landmarks
       </h2>
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-stage text-stage-ink shadow-card ring-1 ring-black/5 dark:ring-white/10">
+      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-stage text-stage-ink shadow-card border border-line">
         <video
           ref={videoRef}
-          className={`mirrored absolute inset-0 h-full w-full object-contain ${live ? '' : 'invisible'}`}
+          className={`${mirrored ? 'mirrored' : ''} absolute inset-0 h-full w-full object-contain ${live ? '' : 'invisible'}`}
           muted
           playsInline
           aria-hidden
         />
         <canvas
           ref={canvasRef}
-          className={`absolute inset-0 h-full w-full ${live ? 'mirrored' : ''}`}
+          className={`absolute inset-0 h-full w-full ${mirrored && live ? 'mirrored' : ''}`}
           role="img"
           aria-label="Tracked hands and upper body"
         />
-        {!live && !replaying ? (
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgb(79_70_229/0.28),transparent_60%)]" />
-        ) : null}
 
-        <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
+        <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2 z-10">
           <StatusPill snap={snap} />
-          {live ? (
-            <span className="hidden rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur sm:inline">
-              Live · on this device
-            </span>
-          ) : replaying && snap.replay ? (
-            <span className="hidden max-w-[55%] truncate rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur sm:inline">
-              Replay · {snap.replay.clip.title}
-            </span>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {live ? (
+              <span className="rounded-md bg-black/60 px-2.5 py-1 text-xs font-mono text-white/90 backdrop-blur">
+                On-device processing
+              </span>
+            ) : replaying && snap.replay ? (
+              <span className="max-w-[60%] truncate rounded-md bg-black/60 px-2.5 py-1 text-xs font-mono text-white/90 backdrop-blur">
+                Replay: {snap.replay.clip.title}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         {snap.source === 'off' && !problem ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
-            <div className="grid size-14 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
-              <Hand aria-hidden className="size-7" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center z-10">
+            <div className="grid size-13 place-items-center rounded-lg bg-white/10 border border-white/15">
+              <Hand aria-hidden className="size-6 text-white/90" />
             </div>
             <div>
-              <p className="text-lg font-semibold text-white sm:text-xl">
+              <p className="text-xl font-semibold tracking-tight text-white">
                 {snap.paused ? 'Camera paused' : 'Sign to your camera'}
               </p>
-              <p className="mx-auto mt-1 max-w-sm text-sm text-white/70">
+              <p className="mx-auto mt-1.5 max-w-sm text-sm text-white/70 leading-relaxed">
                 {snap.paused
-                  ? 'The camera stopped when this tab was hidden.'
-                  : 'Video stays on this device. Only hand and body landmarks are computed, in your browser.'}
+                  ? 'The camera paused automatically when this tab was hidden.'
+                  : 'All recognition runs 100% in your browser. Video never leaves your device.'}
               </p>
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 mt-1">
               <Button
                 variant="primary"
                 size="lg"
                 onClick={() => {
-                  void session.startCamera();
+                  void session.startCamera(selectedDevice || undefined);
                 }}
               >
                 <Camera aria-hidden className="size-5" />
@@ -193,51 +231,46 @@ export function Stage({ session, snap }: { session: Session; snap: SessionSnapsh
         {snap.source === 'starting' ? (
           <div
             role="status"
-            className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sm text-white/80"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-sm text-white/80 z-10"
           >
-            <LoaderCircle aria-hidden className="size-7 animate-spin" />
-            Waiting for the camera…
+            <LoaderCircle aria-hidden className="size-7 animate-spin text-accent" />
+            Initializing camera…
           </div>
         ) : null}
 
         {problem ? (
-          <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-6">
+          <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-6 z-20">
             <div
               role="alert"
-              className="w-full max-w-md rounded-xl bg-white/95 p-4 text-sm text-zinc-900 shadow-xl sm:p-5"
+              className="w-full max-w-md rounded-lg bg-surface p-5 text-sm text-ink shadow-lg border border-line"
               data-testid="camera-problem"
             >
-              <p className="flex items-center gap-2 text-base font-semibold">
-                <CameraOff aria-hidden className="size-5 text-red-700" />
+              <p className="flex items-center gap-2 text-base font-semibold text-danger">
+                <CameraOff aria-hidden className="size-5" />
                 {problem.title}
               </p>
-              <p className="mt-1.5 leading-relaxed text-zinc-700">{problem.body}</p>
+              <p className="mt-2 leading-relaxed text-ink-muted">{problem.body}</p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-700 px-4 font-medium text-white hover:bg-indigo-600"
-                  onClick={openReplay}
-                >
+                <Button variant="primary" onClick={openReplay}>
                   <Film aria-hidden className="size-4" />
                   Replay a clip instead
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-300 px-4 font-medium hover:bg-zinc-100"
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => {
-                    void session.startCamera();
+                    void session.startCamera(selectedDevice || undefined);
                   }}
                 >
                   <RotateCcw aria-hidden className="size-4" />
                   Try again
-                </button>
+                </Button>
               </div>
             </div>
           </div>
         ) : null}
 
         {snap.replay?.done && snap.source === 'replay' ? (
-          <div className="absolute inset-x-0 bottom-0 flex justify-center p-3">
+          <div className="absolute inset-x-0 bottom-0 flex justify-center p-3 z-10">
             <Button
               variant="onStage"
               onClick={() => {
@@ -253,58 +286,121 @@ export function Stage({ session, snap }: { session: Session; snap: SessionSnapsh
         {snap.trackerError && live ? (
           <p
             role="alert"
-            className="absolute inset-x-3 bottom-3 rounded-lg bg-black/70 px-3 py-2 text-sm text-white"
+            className="absolute inset-x-3 bottom-3 rounded-md bg-black/80 px-3 py-2 text-sm text-white border border-white/20 z-10"
           >
             {snap.trackerError}
           </p>
         ) : null}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {live ? (
-          <Button
-            onClick={() => {
-              session.stopCamera();
-            }}
-          >
-            <Square aria-hidden className="size-4" />
-            Stop camera
-          </Button>
-        ) : null}
-        {replaying ? (
-          <>
+      {/* Camera and Stage Control Bar */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {live ? (
             <Button
+              variant="secondary"
               onClick={() => {
-                session.stopReplay();
+                session.stopCamera();
               }}
             >
-              <Square aria-hidden className="size-4" />
-              Stop replay
+              <Square aria-hidden className="size-4 text-danger" />
+              Stop camera
             </Button>
-            {snap.replay ? (
+          ) : null}
+
+          {replaying ? (
+            <>
               <Button
+                variant="secondary"
                 onClick={() => {
-                  if (snap.replay) session.playReplay(snap.replay.clip);
+                  session.stopReplay();
                 }}
               >
-                <Play aria-hidden className="size-4" />
-                Play again
+                <Square aria-hidden className="size-4 text-danger" />
+                Stop replay
               </Button>
-            ) : null}
-          </>
-        ) : null}
-        {live || replaying ? (
-          <Button
-            variant="ghost"
+              {snap.replay ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    if (snap.replay) session.playReplay(snap.replay.clip);
+                  }}
+                >
+                  <Play aria-hidden className="size-4 text-accent" />
+                  Play again
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+
+          {live || replaying ? (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowReplay((v) => !v);
+              }}
+              aria-expanded={showReplay}
+            >
+              <Film aria-hidden className="size-4 text-ink-muted" />
+              {showReplay ? 'Hide clips' : 'Replay clips'}
+            </Button>
+          ) : null}
+        </div>
+
+        {/* View adjustments: Landmarks toggle, Mirror toggle, Device picker */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+          <button
+            type="button"
             onClick={() => {
-              setShowReplay((v) => !v);
+              setShowLandmarks((prev) => !prev);
             }}
-            aria-expanded={showReplay}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
+              showLandmarks
+                ? 'border-accent-border bg-accent-soft text-accent'
+                : 'border-line bg-surface text-ink-muted hover:bg-surface-muted'
+            }`}
+            title="Toggle landmark skeletal overlays"
           >
-            <Film aria-hidden className="size-4" />
-            {showReplay ? 'Hide clips' : 'Replay clips'}
-          </Button>
-        ) : null}
+            {showLandmarks ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+            <span>Landmarks</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMirrored((prev) => !prev);
+            }}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
+              mirrored
+                ? 'border-line bg-surface text-ink hover:bg-surface-muted'
+                : 'border-accent-border bg-accent-soft text-accent'
+            }`}
+            title="Toggle mirror view"
+          >
+            <FlipHorizontal className="size-3.5" />
+            <span>Mirror</span>
+          </button>
+
+          {devices.length > 1 ? (
+            <div className="inline-flex items-center gap-1 border border-line rounded-md bg-surface px-2 py-1">
+              <Video className="size-3.5 text-ink-muted" />
+              <select
+                aria-label="Select camera device"
+                value={selectedDevice}
+                onChange={(e) => {
+                  handleDeviceChange(e.target.value);
+                }}
+                className="bg-transparent text-xs text-ink outline-none cursor-pointer pr-1"
+              >
+                {devices.map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {showReplay ? (
@@ -312,7 +408,6 @@ export function Stage({ session, snap }: { session: Session; snap: SessionSnapsh
           active={snap.replay?.clip.id ?? null}
           onPlay={(clip) => {
             session.playReplay(clip);
-            // On phones the list sits between the stage and the results; get it out of the way.
             if (window.matchMedia('(max-width: 1023px)').matches) setShowReplay(false);
           }}
           onClose={() => {

@@ -1,4 +1,4 @@
-import { CircleDot, HelpCircle, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { CircleDot, HelpCircle, Info, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type SyntheticEvent } from 'react';
 import type { Session } from '../app/session';
 import { GestureStore } from '../lib/gesture-store';
@@ -14,7 +14,7 @@ import {
   type Gesture,
   type GestureMatch,
 } from '../ml/prototypes';
-import { Button, Percent } from './ui';
+import { Badge, Button, Percent } from './ui';
 
 const store = new GestureStore();
 
@@ -25,7 +25,7 @@ function TakeDots({ count }: { count: number }) {
         <span
           key={i}
           className={`size-2 rounded-full ${
-            i < count ? 'bg-accent' : i < MIN_TAKES ? 'bg-ink-muted/35' : 'bg-ink-muted/15'
+            i < count ? 'bg-accent' : i < MIN_TAKES ? 'bg-ink-muted/30' : 'bg-ink-muted/15'
           }`}
         />
       ))}
@@ -70,7 +70,6 @@ export function TeachPanel({ session, model }: { session: Session; model: Loaded
     };
   }, [version, embeddingDim]);
 
-  // Results arrive after renders commit, so the ref always holds the current list.
   const gesturesRef = useRef(gestures);
   useEffect(() => {
     gesturesRef.current = gestures;
@@ -134,7 +133,6 @@ export function TeachPanel({ session, model }: { session: Session; model: Loaded
   const remove = (id: string) => {
     if (armed === id) setArmed(null);
     setMatch(null);
-    // Update the list once the deletion has committed, so leaving right away is safe.
     void store
       .remove(id)
       .catch(storageFailed)
@@ -157,16 +155,27 @@ export function TeachPanel({ session, model }: { session: Session; model: Loaded
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-ink-muted">
-        Teach any gesture with {MIN_TAKES}–{MAX_TAKES} takes. It is matched by the model’s
-        embedding, so it works for anyone, whether or not they sign ASL. Saved on this device only.
-      </p>
+      <div>
+        <p className="text-sm text-ink-muted leading-relaxed">
+          Teach M-ABLE custom gestures with {MIN_TAKES}–{MAX_TAKES} camera recordings. Custom
+          gestures are matched via nearest-prototype cosine similarity on the model’s
+          128-dimensional embedding representation. Stored locally in IndexedDB.
+        </p>
+      </div>
 
-      <form onSubmit={add} className="space-y-1.5" noValidate>
-        <label htmlFor={inputId} className="block text-sm font-medium">
-          New gesture
-        </label>
-        <div className="flex gap-2">
+      {/* Form to add a new custom gesture */}
+      <form
+        onSubmit={add}
+        className="space-y-2 rounded-lg border border-line bg-surface p-4 shadow-sm"
+        noValidate
+      >
+        <div>
+          <label
+            htmlFor={inputId}
+            className="block text-xs font-semibold uppercase tracking-wider text-ink-muted mb-1"
+          >
+            New gesture
+          </label>
           <input
             id={inputId}
             value={name}
@@ -174,72 +183,104 @@ export function TeachPanel({ session, model }: { session: Session; model: Loaded
               setName(e.target.value);
             }}
             maxLength={MAX_NAME_LENGTH}
-            placeholder="e.g. wave, thumbs up"
+            placeholder="e.g. wave, thumbs up, custom salute"
             aria-invalid={formError ? true : undefined}
             aria-describedby={formError ? `${inputId}-error` : undefined}
-            className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-paper px-3 text-sm placeholder:text-ink-muted/70"
+            className="h-10 w-full rounded-md border border-line bg-surface-muted/50 px-3 text-sm text-ink placeholder:text-ink-subtle focus:border-accent focus:bg-surface focus:outline-none"
             disabled={gestures.length >= MAX_GESTURES}
           />
-          <Button type="submit" variant="primary" disabled={gestures.length >= MAX_GESTURES}>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <span className="text-xs text-ink-subtle">
+            {gestures.length}/{MAX_GESTURES} gestures stored
+          </span>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            disabled={gestures.length >= MAX_GESTURES}
+            aria-label="Add gesture"
+          >
             <Plus aria-hidden className="size-4" />
-            Add<span className="sr-only"> gesture</span>
+            Add gesture
           </Button>
         </div>
+
         {formError ? (
-          <p id={`${inputId}-error`} className="text-sm text-danger">
+          <p id={`${inputId}-error`} className="text-xs text-danger font-medium">
             {formError}
           </p>
         ) : null}
       </form>
 
+      {/* Status banner (Required by testid) */}
       <div aria-live="polite" data-testid="teach-status">
         {armedGesture ? (
-          <p className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm font-medium">
-            <CircleDot aria-hidden className="pulse-dot size-4 text-accent" />
-            Recording “{armedGesture.name}”: take{' '}
-            {Math.min(armedGesture.takes.length + 1, MAX_TAKES)} of{' '}
-            {Math.max(MIN_TAKES, armedGesture.takes.length + 1)}. Make the gesture, then lower your
-            hands.
-          </p>
+          <div className="rounded-lg border border-accent-border bg-accent-soft p-4 text-sm font-medium text-ink">
+            <p className="flex items-center gap-2">
+              <CircleDot aria-hidden className="pulse-dot size-4 text-accent" />
+              Recording “{armedGesture.name}”: take{' '}
+              {Math.min(armedGesture.takes.length + 1, MAX_TAKES)} of{' '}
+              {Math.max(MIN_TAKES, armedGesture.takes.length + 1)}
+            </p>
+            <p className="mt-1.5 text-xs text-ink-muted">
+              Make the gesture clearly toward the camera, then lower your hands. The model will
+              extract its embedding vector.
+            </p>
+          </div>
         ) : ready.length === 0 ? (
-          <p className="text-sm text-ink-muted">
-            Add a gesture and record {MIN_TAKES} takes, then try it out.
-          </p>
+          <div className="rounded-lg border border-dashed border-line p-4 text-center text-sm text-ink-muted">
+            Add a gesture and record at least {MIN_TAKES} takes to activate custom recognition.
+          </div>
         ) : match === null || match.kind === 'empty' ? (
-          <p className="text-sm text-ink-muted">Make one of your gestures to see it recognised.</p>
+          <div className="rounded-lg border border-line bg-surface-muted/40 p-4 text-sm text-ink-muted">
+            Make one of your custom gestures toward the camera to see it recognised.
+          </div>
         ) : match.kind === 'match' ? (
-          <div className="rounded-xl border border-success/40 bg-success-soft px-4 py-3">
-            <p className="text-xs font-medium tracking-wide text-ink-muted uppercase">Recognised</p>
-            <p className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+          <div className="rounded-lg border border-success-border bg-success-soft p-4">
+            <p className="text-xs font-semibold tracking-wider text-success uppercase">
+              Recognised
+            </p>
+            <p className="mt-0.5 flex items-center gap-2 text-2xl font-bold tracking-tight text-ink">
               <Sparkles aria-hidden className="size-5 text-success" />
               {match.gesture.name}
             </p>
-            <p className="text-sm text-ink-muted">
-              Similarity <Percent value={match.similarity} />
+            <p className="mt-1 text-xs text-ink-muted font-mono">
+              Cosine similarity: <Percent value={match.similarity} />
             </p>
           </div>
         ) : (
-          <div className="rounded-xl border border-line bg-surface-muted px-4 py-3">
-            <p className="flex items-center gap-2 text-xl font-semibold">
+          <div className="rounded-lg border border-line bg-surface-muted p-4">
+            <p className="flex items-center gap-2 text-lg font-semibold text-warn">
               <HelpCircle aria-hidden className="size-5 text-warn" />
               Not sure
             </p>
-            <p className="text-sm text-ink-muted">
-              Closest was “{match.gesture.name}”, but not by enough to say so.
+            <p className="mt-1 text-xs text-ink-muted">
+              Closest match was “{match.gesture.name}”, but similarity was below the honest
+              confidence threshold.
             </p>
           </div>
         )}
       </div>
 
+      {/* Gestures List */}
       {gestures.length > 0 ? (
         <ul
-          className="divide-y divide-line rounded-xl border border-line"
+          className="divide-y divide-line rounded-lg border border-line bg-surface shadow-sm overflow-hidden"
           aria-label="Your gestures"
         >
           {gestures.map((g) => (
-            <li key={g.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
+            <li key={g.id} className="flex flex-wrap items-center justify-between gap-3 p-3.5">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{g.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-sm font-semibold text-ink">{g.name}</p>
+                  {isReady(g) ? (
+                    <Badge variant="success">Active</Badge>
+                  ) : (
+                    <Badge variant="warn">Needs takes</Badge>
+                  )}
+                </div>
                 <div className="mt-1 flex items-center gap-2 text-xs text-ink-muted">
                   <TakeDots count={g.takes.length} />
                   <span>
@@ -247,26 +288,28 @@ export function TeachPanel({ session, model }: { session: Session; model: Loaded
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
+
+              <div className="flex items-center gap-1.5">
                 {g.takes.length < MAX_TAKES && armed !== g.id ? (
                   <Button
-                    size="sm"
-                    variant="ghost"
+                    size="xs"
+                    variant="secondary"
                     onClick={() => {
                       setArmed(g.id);
                       setMatch(null);
                       session.resetRecognition();
                     }}
                   >
-                    <CircleDot aria-hidden className="size-4" />
+                    <CircleDot aria-hidden className="size-3 text-accent" />
                     {isReady(g) ? 'Add take' : 'Record'}
                     <span className="sr-only"> for {g.name}</span>
                   </Button>
                 ) : null}
+
                 {armed === g.id ? (
                   <Button
-                    size="sm"
-                    variant="ghost"
+                    size="xs"
+                    variant="outline"
                     onClick={() => {
                       setArmed(null);
                     }}
@@ -274,15 +317,16 @@ export function TeachPanel({ session, model }: { session: Session; model: Loaded
                     Stop<span className="sr-only"> recording {g.name}</span>
                   </Button>
                 ) : null}
+
                 <Button
-                  size="sm"
+                  size="xs"
                   variant="ghost"
                   onClick={() => {
                     remove(g.id);
                   }}
                   aria-label={`Delete ${g.name}`}
                 >
-                  <Trash2 aria-hidden className="size-4" />
+                  <Trash2 aria-hidden className="size-3.5 text-danger" />
                 </Button>
               </div>
             </li>
@@ -290,18 +334,19 @@ export function TeachPanel({ session, model }: { session: Session; model: Loaded
         </ul>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
+      {/* Footer & clear actions */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted pt-2 border-t border-line/60">
         <span>
-          {gestures.length}/{MAX_GESTURES} gestures · stored in this browser as numbers, never video
+          {gestures.length}/{MAX_GESTURES} gestures · indexed mathematically as vectors, never video
         </span>
         {gestures.length > 0 ? (
           confirmClear ? (
-            <span className="flex gap-1">
-              <Button size="sm" variant="danger" onClick={clearAll}>
+            <span className="flex items-center gap-1.5">
+              <Button size="xs" variant="danger" onClick={clearAll}>
                 Delete all
               </Button>
               <Button
-                size="sm"
+                size="xs"
                 variant="ghost"
                 onClick={() => {
                   setConfirmClear(false);
@@ -312,19 +357,34 @@ export function TeachPanel({ session, model }: { session: Session; model: Loaded
             </span>
           ) : (
             <Button
-              size="sm"
+              size="xs"
               variant="ghost"
               onClick={() => {
                 setConfirmClear(true);
               }}
             >
-              <Trash2 aria-hidden className="size-4" />
+              <Trash2 aria-hidden className="size-3.5" />
               Clear all
             </Button>
           )
         ) : null}
       </div>
-      {notice ? <p className="text-sm text-warn">{notice}</p> : null}
+
+      {notice ? <p className="text-xs text-warn">{notice}</p> : null}
+
+      {/* Honest Technical Methodology Disclosure */}
+      <div className="rounded-lg border border-line bg-surface-muted/40 p-3.5 text-xs text-ink-muted space-y-1">
+        <p className="font-semibold text-ink flex items-center gap-1.5">
+          <Info className="size-3.5 text-accent" />
+          Technical Integrity Notice
+        </p>
+        <p className="leading-relaxed">
+          Custom signs do not retrain the full neural network. Instead, the model outputs a
+          128-dimensional embedding from its penultimate layer, and new inputs are classified via
+          cosine distance against your prototypes. Recognition requires distinct, repeatable hand
+          configurations.
+        </p>
+      </div>
     </div>
   );
 }

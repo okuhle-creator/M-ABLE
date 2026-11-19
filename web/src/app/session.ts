@@ -201,15 +201,20 @@ export class Session {
     for (const listener of this.frameListeners) listener(frame, source);
   }
 
+  private activeDeviceId: string | undefined = undefined;
+
   // --- camera ---------------------------------------------------------------
   attachVideo(video: HTMLVideoElement | null): void {
     this.video = video;
   }
 
-  async startCamera(): Promise<void> {
+  async startCamera(deviceId?: string): Promise<void> {
     const token = ++this.startToken;
     mark('camera-click');
     this.stopReplay();
+    if (deviceId !== undefined) {
+      this.activeDeviceId = deviceId;
+    }
     this.set({
       source: 'starting',
       cameraProblem: null,
@@ -221,7 +226,7 @@ export class Session {
     const tracker = this.ensureTracker();
     let stream: MediaStream;
     try {
-      stream = await openCamera();
+      stream = await openCamera(this.activeDeviceId);
     } catch (error) {
       if (token !== this.startToken) return;
       const problem = error instanceof CameraError ? error.problem : classifyCameraError(error);

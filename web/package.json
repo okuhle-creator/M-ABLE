@@ -1,8 +1,8 @@
 {
-  "name": "gesturesign-web",
+  "name": "m-able-web",
   "private": true,
-  "version": "0.1.0",
-  "description": "Live ASL sign recognition in the browser: MediaPipe landmarks and a small ONNX model, all on the visitor's device.",
+  "version": "1.0.0",
+  "description": "M-ABLE: Intelligent Accessibility & Assistive Communication Technology with on-device ASL sign recognition.",
   "license": "MIT",
   "author": "Shashank Yadav",
   "type": "module",

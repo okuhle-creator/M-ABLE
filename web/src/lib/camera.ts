@@ -6,6 +6,11 @@
 
 export type CameraProblem = 'denied' | 'none' | 'busy' | 'unsupported' | 'failed';
 
+export interface CameraDevice {
+  deviceId: string;
+  label: string;
+}
+
 export class CameraError extends Error {
   override name = 'CameraError';
   constructor(
@@ -62,23 +67,47 @@ export function classifyCameraError(error: unknown): CameraProblem {
   }
 }
 
-export async function openCamera(): Promise<MediaStream> {
+export async function openCamera(deviceId?: string): Promise<MediaStream> {
   if (!('mediaDevices' in navigator) || typeof navigator.mediaDevices.getUserMedia !== 'function') {
     throw new CameraError('unsupported', 'getUserMedia is not available');
   }
   try {
+    const videoConstraint: MediaTrackConstraints = deviceId
+      ? { deviceId: { exact: deviceId } }
+      : {
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30 },
+        };
+
     return await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: {
-        facingMode: 'user',
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-        frameRate: { ideal: 30 },
-      },
+      video: videoConstraint,
     });
   } catch (error) {
     const problem = classifyCameraError(error);
     throw new CameraError(problem, error instanceof Error ? error.message : String(error));
+  }
+}
+
+export async function listCameraDevices(): Promise<CameraDevice[]> {
+  if (
+    !('mediaDevices' in navigator) ||
+    typeof navigator.mediaDevices.enumerateDevices !== 'function'
+  ) {
+    return [];
+  }
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices
+      .filter((d) => d.kind === 'videoinput')
+      .map((d, index) => ({
+        deviceId: d.deviceId,
+        label: d.label || `Camera ${index + 1}`,
+      }));
+  } catch {
+    return [];
   }
 }
 

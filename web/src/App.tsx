@@ -1,21 +1,37 @@
-import { Cpu, Lock, Sparkles } from 'lucide-react';
+import { Cpu, Lock, MessageSquare } from 'lucide-react';
 import { useState, useSyncExternalStore } from 'react';
 import type { Session } from './app/session';
+import { HistoryPanel } from './components/HistoryPanel';
 import { HowItWorks } from './components/HowItWorks';
 import { ModeTabs, type Mode } from './components/ModeTabs';
 import { ModelGate } from './components/ModelGate';
+import { OverviewPanel } from './components/OverviewPanel';
 import { PracticePanel } from './components/PracticePanel';
 import { PreviewNotice } from './components/PreviewNotice';
 import { RecognisePanel } from './components/RecognisePanel';
-import { SiteHeader } from './components/SiteHeader';
+import { SettingsPanel } from './components/SettingsPanel';
+import { SignDictionary } from './components/SignDictionary';
+import { SiteHeader, type ActiveView } from './components/SiteHeader';
 import { Stage } from './components/Stage';
 import { TeachPanel } from './components/TeachPanel';
 import { Card } from './components/ui';
-import { AUTHOR_URL, DATASET_CREDIT, PORTFOLIO_URL, REPO_URL } from './links';
+import {
+  APP_NAME,
+  APP_SUBTITLE,
+  APP_TAGLINE,
+  DATASET_URL,
+  ORIGINAL_AUTHOR,
+  ORIGINAL_PROJECT,
+  ORIGINAL_REPO_URL,
+  REPO_URL,
+} from './links';
 
 export function App({ session }: { session: Session }) {
   const snap = useSyncExternalStore(session.subscribe, session.getSnapshot);
+  const [activeView, setActiveView] = useState<ActiveView>('live');
   const [mode, setMode] = useState<Mode>('recognise');
+  const [practiceTarget, setPracticeTarget] = useState<number | undefined>(undefined);
+
   const model = snap.model;
   const untrained = model.status === 'ready' && model.model.meta.metrics === null;
   const shipped =
@@ -23,103 +39,205 @@ export function App({ session }: { session: Session }) {
 
   const changeMode = (next: Mode) => {
     setMode(next);
+    if (next === 'recognise') {
+      setActiveView('live');
+    } else if (next === 'practice') {
+      setActiveView('learn');
+    } else {
+      setActiveView('teach');
+    }
     session.resetRecognition();
   };
 
+  const handleNavigate = (view: ActiveView) => {
+    setActiveView(view);
+    if (view === 'live') {
+      setMode('recognise');
+    } else if (view === 'learn') {
+      setMode('practice');
+    } else if (view === 'teach') {
+      setMode('teach');
+    }
+    session.resetRecognition();
+  };
+
+  const handlePracticeSpecificSign = (index: number) => {
+    setPracticeTarget(index);
+    setMode('practice');
+    setActiveView('learn');
+    session.resetRecognition();
+  };
+
+  const isStudioView = activeView === 'live' || activeView === 'learn' || activeView === 'teach';
+
   return (
-    <>
-      <a href="#demo" className="skip-link">
-        Skip to the demo
+    <div className="min-h-screen flex flex-col bg-paper text-ink transition-colors">
+      <a href="#main" className="skip-link">
+        Skip to main content
       </a>
-      <SiteHeader />
+
+      <SiteHeader activeView={activeView} onChangeView={handleNavigate} modelState={model} />
+
       {untrained ? <PreviewNotice /> : null}
-      <main id="main" className="mx-auto max-w-6xl px-4 pt-8 pb-16 sm:pt-12">
-        <div className="max-w-3xl">
-          <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-5xl">
-            Sign to your camera. See ASL recognised as you go.
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-muted sm:text-lg">
-            Live recognition of {shipped ?? 'hundreds of'} isolated American Sign Language signs, a
-            practice mode, and gestures you teach yourself. It all runs in this tab.
-          </p>
-          <ul className="mt-4 flex flex-wrap gap-2 text-sm" aria-label="Highlights">
-            {[
-              { icon: Lock, text: 'Video stays on your device' },
-              { icon: Cpu, text: 'Runs in your browser' },
-              { icon: Sparkles, text: 'No install, no account' },
-            ].map(({ icon: Icon, text }) => (
-              <li
-                key={text}
-                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1"
-              >
-                <Icon aria-hidden className="size-3.5 text-accent" />
-                {text}
-              </li>
-            ))}
-          </ul>
-        </div>
 
-        <div
-          id="demo"
-          className="mt-8 grid scroll-mt-4 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"
-        >
-          <Stage session={session} snap={snap} />
-          <Card className="min-w-0 self-start p-4 sm:p-5">
-            <ModeTabs mode={mode} onChange={changeMode} />
-            <div
-              role="tabpanel"
-              id={`panel-${mode}`}
-              aria-labelledby={`tab-${mode}`}
-              tabIndex={0}
-              className="mt-5 focus-visible:outline-offset-4"
-            >
-              <ModelGate
-                state={model}
-                onRetry={() => {
-                  void session.loadModel();
-                }}
-              >
-                {(loaded) =>
-                  mode === 'recognise' ? (
-                    <RecognisePanel session={session} snap={snap} model={loaded} />
-                  ) : mode === 'practice' ? (
-                    <PracticePanel session={session} model={loaded} />
-                  ) : (
-                    <TeachPanel session={session} model={loaded} />
-                  )
-                }
-              </ModelGate>
-              {snap.inferenceError ? (
-                <p role="alert" className="mt-4 text-sm text-danger">
-                  The model failed on that sign: {snap.inferenceError}
-                </p>
-              ) : null}
+      <main id="main" className="flex-1 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+        {/* VIEW: OVERVIEW */}
+        {activeView === 'overview' && (
+          <div className="space-y-12">
+            <OverviewPanel modelState={model} onNavigate={handleNavigate} />
+            <HowItWorks model={model} />
+          </div>
+        )}
+
+        {/* VIEW: LIVE COMMUNICATION / LEARN / TEACH (Studio layout with camera stage) */}
+        {isStudioView && (
+          <div>
+            <div className="max-w-3xl mb-6">
+              <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-4xl">
+                Sign to your camera
+              </h1>
+              <p className="mt-1.5 text-sm sm:text-base leading-relaxed text-ink-muted">
+                {activeView === 'live'
+                  ? `On-device isolated ASL sign recognition with live sentence assembly, text-to-speech, and conversation captions across ${shipped ?? 250} supported signs.`
+                  : activeView === 'learn'
+                    ? 'Guided sign language practice with real-time feedback scored directly against model confidence.'
+                    : 'Teach M-ABLE custom gestures using few-shot prototype embeddings. Saved locally.'}
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-ink-muted">
+                <span className="inline-flex items-center gap-1 rounded border border-line bg-surface px-2.5 py-1">
+                  <Lock className="size-3 text-accent" />
+                  Video remains strictly on device
+                </span>
+                <span className="inline-flex items-center gap-1 rounded border border-line bg-surface px-2.5 py-1">
+                  <Cpu className="size-3 text-accent" />
+                  WASM SIMD local inference
+                </span>
+                <span className="inline-flex items-center gap-1 rounded border border-line bg-surface px-2.5 py-1">
+                  <MessageSquare className="size-3 text-accent" />
+                  Text-to-Speech & Captions enabled
+                </span>
+              </div>
             </div>
-          </Card>
-        </div>
 
-        <HowItWorks model={model} />
+            <div
+              id="demo"
+              className="grid scroll-mt-4 gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] items-start"
+            >
+              {/* Left Column: Camera and Landmark Stage */}
+              <Stage session={session} snap={snap} />
+
+              {/* Right Column: Mode Tabs and Interactive Panel */}
+              <Card className="min-w-0 p-4 sm:p-5">
+                <ModeTabs mode={mode} onChange={changeMode} />
+
+                <div
+                  role="tabpanel"
+                  id={`panel-${mode}`}
+                  aria-labelledby={`tab-${mode}`}
+                  tabIndex={0}
+                  className="mt-4 focus-visible:outline-offset-4"
+                >
+                  <ModelGate
+                    state={model}
+                    onRetry={() => {
+                      void session.loadModel();
+                    }}
+                  >
+                    {(loaded) =>
+                      mode === 'recognise' ? (
+                        <RecognisePanel session={session} snap={snap} model={loaded} />
+                      ) : mode === 'practice' ? (
+                        <PracticePanel
+                          session={session}
+                          model={loaded}
+                          initialTarget={practiceTarget}
+                        />
+                      ) : (
+                        <TeachPanel session={session} model={loaded} />
+                      )
+                    }
+                  </ModelGate>
+
+                  {snap.inferenceError ? (
+                    <p role="alert" className="mt-4 text-xs text-danger font-medium">
+                      Inference exception: {snap.inferenceError}
+                    </p>
+                  ) : null}
+                </div>
+              </Card>
+            </div>
+
+            <HowItWorks model={model} />
+          </div>
+        )}
+
+        {/* VIEW: SIGN DICTIONARY */}
+        {activeView === 'dictionary' && (
+          <ModelGate
+            state={model}
+            onRetry={() => {
+              void session.loadModel();
+            }}
+          >
+            {(loaded) => (
+              <SignDictionary labels={loaded.labels} onPracticeSign={handlePracticeSpecificSign} />
+            )}
+          </ModelGate>
+        )}
+
+        {/* VIEW: COMMUNICATION HISTORY */}
+        {activeView === 'history' && <HistoryPanel />}
+
+        {/* VIEW: SETTINGS & ACCESSIBILITY */}
+        {activeView === 'settings' && <SettingsPanel />}
       </main>
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-6 text-sm text-ink-muted sm:flex-row sm:justify-between">
-          <p>
-            GestureSign by{' '}
-            <a href={AUTHOR_URL} className="underline underline-offset-2">
-              Shashank Yadav
-            </a>{' '}
-            ·{' '}
-            <a href={PORTFOLIO_URL} className="underline underline-offset-2">
-              shashankyadav.dev
-            </a>{' '}
-            ·{' '}
-            <a href={REPO_URL} className="underline underline-offset-2">
-              source
-            </a>{' '}
-            · MIT licence
-          </p>
-          <p>Data: {DATASET_CREDIT}</p>
+
+      {/* Editorial Understated Footer */}
+      <footer className="mt-auto border-t border-line bg-surface/60">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <p className="font-semibold text-ink">
+              {APP_NAME} · {APP_TAGLINE}
+            </p>
+            <p className="mt-0.5 text-ink-subtle">{APP_SUBTITLE}</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-ink underline underline-offset-2"
+            >
+              GitHub Repository
+            </a>
+            <span>·</span>
+            <span>
+              AI pipeline based on{' '}
+              <a
+                href={ORIGINAL_REPO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-ink underline underline-offset-2"
+              >
+                {ORIGINAL_PROJECT} by {ORIGINAL_AUTHOR}
+              </a>
+            </span>
+            <span>·</span>
+            <a
+              href={DATASET_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-ink underline underline-offset-2"
+            >
+              Kaggle asl-signs (CC BY 4.0)
+            </a>
+            <span>·</span>
+            <span>MIT Licence</span>
+          </div>
         </div>
       </footer>
-    </>
+    </div>
   );
 }
