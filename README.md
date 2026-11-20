@@ -1,8 +1,8 @@
 # M-ABLE
 
-**Making Every Ability Understood.**
+**Making Ability Accessible.**
 
-*Intelligent Accessibility & Assistive Communication Technology.*
+*Intelligent Accessibility & Assistive Communication Ecosystem.*
 
 [![Deploy M-ABLE to GitHub Pages](https://github.com/okuhle-creator/M-ABLE/actions/workflows/deploy.yml/badge.svg)](https://github.com/okuhle-creator/M-ABLE/actions/workflows/deploy.yml)
 [![CI Checks](https://github.com/okuhle-creator/M-ABLE/actions/workflows/ci.yml/badge.svg)](https://github.com/okuhle-creator/M-ABLE/actions/workflows/ci.yml)
@@ -87,15 +87,18 @@ flowchart LR
 
 ## 4. Supported Capabilities
 
-- **Isolated Sign Recognition:** Real-time recognition across a verified vocabulary of 250 isolated ASL signs.
+- **Two-Way Communication Studio:** Dedicated split-perspective conversational suite bridging Deaf signers (Sign → Text → Speech) and hearing partners (Speech → High-Contrast Live Captions → Quick Responses).
+- **Isolated Sign Recognition:** Real-time recognition across a verified vocabulary of 250 isolated ASL signs with calibrated confidence scoring.
 - **Interactive Sentence Builder:** Assembles recognized signs into an editable text buffer with quick-action punctuation, space insertion, undo, and clear controls.
 - **Voice Output (Text-to-Speech):** Vocalizes assembled sentences using browser-native speech synthesis with configurable voices, speed, and pitch.
 - **Conversation Captions (Speech-to-Text):** Transcribes spoken dialogue from hearing conversation partners onto the screen, enabling seamless two-way communication.
-- **ASL Learning Centre:** Interactive practice mode with daily "Sign of the Day", curated categories (Greetings, Family, Nature, Actions), and real-time confidence scores.
+- **ASL Learning Centre:** Interactive curriculum with curated categories (Greetings, Emergency, Family, Everyday, Actions, Questions), daily "Sign of the Day", multi-question comprehension quizzes, and webcam practice.
+- **Personal Vocabulary & Flashcards:** Bookmark key signs, study with interactive flip cards, and review custom taught gestures.
+- **Progress & Learning Analytics:** Objective local analytics showing signs practiced, mastery rates, daily streaks, and quiz performance.
 - **Searchable Sign Dictionary:** Complete directory of all 250 supported signs featuring held-out test accuracy metrics, category filters, and verified external video demonstration links (Signing Savvy).
 - **Teach Your Own Gestures:** Few-shot prototype studio enabling users to record 3–5 takes of custom gestures, classified via cosine similarity against stored 128-d embeddings.
 - **Communication History:** Privacy-first local archive of confirmed conversations with audio replay, clipboard copying, and JSON/TXT export.
-- **Accessibility & Sensory Controls:** Includes Light (Warm Ivory), Dark (Charcoal), and System themes, text size scaling (Standard, Large, Extra Large), Reduced Motion overrides, and High Contrast mode.
+- **Accessibility & Sensory Controls:** Includes Light (Warm Ivory), Dark (Charcoal), and System themes, text size scaling (Standard, Large, Extra Large), Reduced Motion overrides, High Contrast mode, and User Persona profiles.
 
 ---
 

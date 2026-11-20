@@ -1,11 +1,15 @@
 import { Cpu, Lock, MessageSquare } from 'lucide-react';
 import { useState, useSyncExternalStore } from 'react';
 import type { Session } from './app/session';
+import { AnalyticsPanel } from './components/AnalyticsPanel';
+import { CommunicationStudio } from './components/CommunicationStudio';
 import { HistoryPanel } from './components/HistoryPanel';
 import { HowItWorks } from './components/HowItWorks';
+import { LearningCenter } from './components/LearningCenter';
 import { ModeTabs, type Mode } from './components/ModeTabs';
 import { ModelGate } from './components/ModelGate';
 import { OverviewPanel } from './components/OverviewPanel';
+import { PersonalVocabulary } from './components/PersonalVocabulary';
 import { PracticePanel } from './components/PracticePanel';
 import { PreviewNotice } from './components/PreviewNotice';
 import { RecognisePanel } from './components/RecognisePanel';
@@ -14,7 +18,7 @@ import { SignDictionary } from './components/SignDictionary';
 import { SiteHeader, type ActiveView } from './components/SiteHeader';
 import { Stage } from './components/Stage';
 import { TeachPanel } from './components/TeachPanel';
-import { Card } from './components/ui';
+import { Card, ToastContainer } from './components/ui';
 import {
   APP_NAME,
   APP_SUBTITLE,
@@ -28,7 +32,7 @@ import {
 
 export function App({ session }: { session: Session }) {
   const snap = useSyncExternalStore(session.subscribe, session.getSnapshot);
-  const [activeView, setActiveView] = useState<ActiveView>('live');
+  const [activeView, setActiveView] = useState<ActiveView>('overview');
   const [mode, setMode] = useState<Mode>('recognise');
   const [practiceTarget, setPracticeTarget] = useState<number | undefined>(undefined);
 
@@ -39,36 +43,20 @@ export function App({ session }: { session: Session }) {
 
   const changeMode = (next: Mode) => {
     setMode(next);
-    if (next === 'recognise') {
-      setActiveView('live');
-    } else if (next === 'practice') {
-      setActiveView('learn');
-    } else {
-      setActiveView('teach');
-    }
     session.resetRecognition();
   };
 
   const handleNavigate = (view: ActiveView) => {
     setActiveView(view);
-    if (view === 'live') {
-      setMode('recognise');
-    } else if (view === 'learn') {
-      setMode('practice');
-    } else if (view === 'teach') {
-      setMode('teach');
-    }
     session.resetRecognition();
   };
 
   const handlePracticeSpecificSign = (index: number) => {
     setPracticeTarget(index);
     setMode('practice');
-    setActiveView('learn');
+    setActiveView('live');
     session.resetRecognition();
   };
-
-  const isStudioView = activeView === 'live' || activeView === 'learn' || activeView === 'teach';
 
   return (
     <div className="min-h-screen flex flex-col bg-paper text-ink transition-colors">
@@ -81,7 +69,7 @@ export function App({ session }: { session: Session }) {
       {untrained ? <PreviewNotice /> : null}
 
       <main id="main" className="flex-1 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-        {/* VIEW: OVERVIEW */}
+        {/* VIEW 1: OVERVIEW */}
         {activeView === 'overview' && (
           <div className="space-y-12">
             <OverviewPanel modelState={model} onNavigate={handleNavigate} />
@@ -89,17 +77,29 @@ export function App({ session }: { session: Session }) {
           </div>
         )}
 
-        {/* VIEW: LIVE COMMUNICATION / LEARN / TEACH (Studio layout with camera stage) */}
-        {isStudioView && (
+        {/* VIEW 2: TWO-WAY COMMUNICATION STUDIO */}
+        {activeView === 'studio' && (
+          <ModelGate
+            state={model}
+            onRetry={() => {
+              void session.loadModel();
+            }}
+          >
+            {(loaded) => <CommunicationStudio session={session} snap={snap} model={loaded} />}
+          </ModelGate>
+        )}
+
+        {/* VIEW 3: LIVE RECOGNITION STUDIO (Isolated Signs & Teach Mode) */}
+        {activeView === 'live' && (
           <div>
             <div className="max-w-3xl mb-6">
               <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-4xl">
                 Sign to your camera
               </h1>
               <p className="mt-1.5 text-sm sm:text-base leading-relaxed text-ink-muted">
-                {activeView === 'live'
-                  ? `On-device isolated ASL sign recognition with live sentence assembly, text-to-speech, and conversation captions across ${shipped ?? 250} supported signs.`
-                  : activeView === 'learn'
+                {mode === 'recognise'
+                  ? `On-device isolated ASL sign recognition with sentence builder, text-to-speech, and live captions across ${shipped ?? 250} supported signs.`
+                  : mode === 'practice'
                     ? 'Guided sign language practice with real-time feedback scored directly against model confidence.'
                     : 'Teach M-ABLE custom gestures using few-shot prototype embeddings. Saved locally.'}
               </p>
@@ -172,7 +172,41 @@ export function App({ session }: { session: Session }) {
           </div>
         )}
 
-        {/* VIEW: SIGN DICTIONARY */}
+        {/* VIEW 4: ASL LEARNING CENTRE */}
+        {activeView === 'learn' && (
+          <ModelGate
+            state={model}
+            onRetry={() => {
+              void session.loadModel();
+            }}
+          >
+            {(loaded) => (
+              <LearningCenter
+                labels={loaded.labels}
+                onLaunchPractice={handlePracticeSpecificSign}
+              />
+            )}
+          </ModelGate>
+        )}
+
+        {/* VIEW 5: PERSONAL VOCABULARY & FLASHCARDS */}
+        {activeView === 'vocabulary' && (
+          <ModelGate
+            state={model}
+            onRetry={() => {
+              void session.loadModel();
+            }}
+          >
+            {(loaded) => (
+              <PersonalVocabulary
+                labels={loaded.labels}
+                onPracticeSign={handlePracticeSpecificSign}
+              />
+            )}
+          </ModelGate>
+        )}
+
+        {/* VIEW 6: SIGN DICTIONARY */}
         {activeView === 'dictionary' && (
           <ModelGate
             state={model}
@@ -186,12 +220,27 @@ export function App({ session }: { session: Session }) {
           </ModelGate>
         )}
 
-        {/* VIEW: COMMUNICATION HISTORY */}
+        {/* VIEW 7: LEARNING ANALYTICS */}
+        {activeView === 'analytics' && (
+          <ModelGate
+            state={model}
+            onRetry={() => {
+              void session.loadModel();
+            }}
+          >
+            {(loaded) => <AnalyticsPanel labels={loaded.labels} />}
+          </ModelGate>
+        )}
+
+        {/* VIEW 8: COMMUNICATION HISTORY */}
         {activeView === 'history' && <HistoryPanel />}
 
-        {/* VIEW: SETTINGS & ACCESSIBILITY */}
+        {/* VIEW 9: SETTINGS & ACCESSIBILITY */}
         {activeView === 'settings' && <SettingsPanel />}
       </main>
+
+      {/* Global Toast Container */}
+      <ToastContainer />
 
       {/* Editorial Understated Footer */}
       <footer className="mt-auto border-t border-line bg-surface/60">

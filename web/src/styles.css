@@ -11,7 +11,7 @@
   --surface-hover: #ebe7df;
   --ink: #18181b;
   --ink-muted: #524f49;
-  --ink-subtle: #59554e;
+  --ink-subtle: #736f68;
   --line: #ded9cf;
   --line-strong: #c2bcb0;
 
@@ -38,12 +38,26 @@
   --stage-ink: #f4f3f0;
   --stage-muted: #9fa5af;
 
-  /* Subdued, precise elevation without glowing artifacts */
+  /* Geometry & Radius Tokens */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Elevation */
   --shadow-sm: 0 1px 2px 0 rgb(24 24 27 / 0.04);
   --shadow: 0 1px 3px 0 rgb(24 24 27 / 0.05), 0 4px 14px -2px rgb(24 24 27 / 0.04);
   --shadow-lg: 0 8px 24px -4px rgb(24 24 27 / 0.08);
 
-  /* Typography scale multiplier (modified via Settings) */
+  /* Typography scale multiplier */
   --text-scale: 1;
 
   color-scheme: light;
@@ -57,7 +71,7 @@ html[data-theme='light'] {
   --surface-hover: #ebe7df;
   --ink: #18181b;
   --ink-muted: #524f49;
-  --ink-subtle: #59554e;
+  --ink-subtle: #736f68;
   --line: #ded9cf;
   --line-strong: #c2bcb0;
   --accent: #1c6b65;
@@ -87,7 +101,7 @@ html[data-theme='light'] {
     --surface-hover: #2f333a;
     --ink: #f0eeeb;
     --ink-muted: #9d9a94;
-    --ink-subtle: #6c6963;
+    --ink-subtle: #858178;
     --line: #2e3238;
     --line-strong: #40454d;
     --accent: #45a39c;
@@ -120,7 +134,7 @@ html[data-theme='dark'] {
   --surface-hover: #2f333a;
   --ink: #f0eeeb;
   --ink-muted: #9d9a94;
-  --ink-subtle: #6c6963;
+  --ink-subtle: #858178;
   --line: #2e3238;
   --line-strong: #40454d;
   --accent: #45a39c;

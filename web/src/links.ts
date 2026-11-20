@@ -1,6 +1,7 @@
 export const APP_NAME = 'M-ABLE';
-export const APP_TAGLINE = 'Making Every Ability Understood';
-export const APP_SUBTITLE = 'Intelligent Accessibility & Assistive Communication Technology';
+export const APP_TAGLINE = 'Making Ability Accessible';
+export const APP_SUBTITLE =
+  'Intelligent On-Device Sign Language & Assistive Communication Ecosystem';
 
 export const REPO_OWNER = 'okuhle-creator';
 export const REPO_NAME = 'M-ABLE';

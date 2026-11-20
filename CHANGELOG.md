@@ -7,7 +7,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.1.0] — 2026-11-20
+
+### Added
+- **Two-Way Communication Studio** (`web/src/components/CommunicationStudio.tsx`): Dedicated split-perspective communication layout with Signer side (Sign → Voice) and Hearing Partner side (Speech → Live Captions + Quick Responses).
+- **ASL Learning Centre & Curricula** (`web/src/components/LearningCenter.tsx`, `web/src/lib/learning-store.ts`): Structured learning modules (Greetings, Emergency, Family, Everyday, Actions, Questions), Sign-of-the-Day, interactive 5-question comprehension quizzes, and daily practice streaks.
+- **Personal Vocabulary & Flashcards** (`web/src/components/PersonalVocabulary.tsx`): Interactive flip flashcard studio and bookmarking system linked to the 250-sign dictionary.
+- **Learning Analytics & Insights** (`web/src/components/AnalyticsPanel.tsx`): True local mastery metrics, category completion rates, daily streaks, and practice take counters.
+- **User Persona & Profile System** (`web/src/components/ProfileModal.tsx`, `web/src/lib/profile-store.ts`): Configurable roles (Deaf Signer, Hearing Learner, Clinician, Guest), primary studio defaults, and one-click JSON backup export.
+- **Accessible UI Component Library** (`web/src/components/ui.tsx`, `web/src/lib/toast-store.ts`): Added Dialog/Modal with ESC & focus traps, Toast Notifications container with auto-dismissal, Progress Bars, Stat Cards, Empty States, and Section Headers.
+- **Design Tokens & Theme Styling** (`web/src/styles.css`): Expanded geometry, radius, transition timings, and high-contrast WCAG 2.2 AA compliant tokens.
+- **Architecture Audit** (`docs/AUDIT.md`): Comprehensive technical assessment of computer vision, neural runtime, and information architecture.
 
 ### Added
 - **PWA manifest** (`public/manifest.json`) with `standalone` display, theme colour, and icon for home-screen install on mobile.

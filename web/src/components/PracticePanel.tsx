@@ -286,9 +286,7 @@ export function PracticePanel({
       <div aria-live="polite" data-testid="practice-score">
         {attempt === null ? (
           <div className="rounded-lg border border-dashed border-line p-4 text-center text-sm text-ink-muted">
-            <p>
-              Sign to your camera (or replay a clip) to get a score.
-            </p>
+            <p>Sign to your camera (or replay a clip) to get a score.</p>
           </div>
         ) : (
           <div

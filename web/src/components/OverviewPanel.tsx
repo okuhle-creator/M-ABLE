@@ -1,12 +1,4 @@
-import {
-  ArrowRight,
-  BookOpen,
-  Camera,
-  Cpu,
-  GraduationCap,
-  Lock,
-  MessageSquare,
-} from 'lucide-react';
+import { ArrowRight, Camera, Cpu, GraduationCap, Lock, MessageSquare } from 'lucide-react';
 import type { ModelState } from '../app/session';
 import {
   DATASET_CREDIT,
@@ -15,6 +7,7 @@ import {
   ORIGINAL_PROJECT,
   ORIGINAL_REPO_URL,
 } from '../links';
+import type { ActiveView } from './SiteHeader';
 import { Badge, Button, Card } from './ui';
 
 export function OverviewPanel({
@@ -22,7 +15,7 @@ export function OverviewPanel({
   onNavigate,
 }: {
   modelState: ModelState;
-  onNavigate: (view: 'live' | 'learn' | 'dictionary' | 'teach' | 'history' | 'settings') => void;
+  onNavigate: (view: ActiveView) => void;
 }) {
   const meta = modelState.status === 'ready' ? modelState.model.meta : null;
   const shippedCount =
@@ -37,24 +30,24 @@ export function OverviewPanel({
           <span className="text-xs font-mono text-ink-subtle">On-Device Neural Inference</span>
         </div>
         <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-5xl leading-tight">
-          Making Every Ability Understood.
+          Making Ability Accessible.
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-ink-muted">
-          M-ABLE is an intelligent assistive communication platform bridging sign language and
-          spoken dialogue. With real-time computer vision and transformer-based inference operating
-          entirely inside the browser, communication is fast, accessible, and completely private.
+          M-ABLE is an intelligent assistive communication ecosystem bridging American Sign Language
+          and spoken conversation. With real-time computer vision and neural inference running 100%
+          on-device in your browser, dialogue is responsive, dignified, and strictly confidential.
         </p>
 
         {/* Value proposition badges */}
         <div className="mt-5 flex flex-wrap gap-2 text-xs font-medium text-ink-muted">
           {[
-            { icon: Lock, text: 'Zero cloud upload: video never leaves device' },
-            { icon: Cpu, text: 'WASM SIMD accelerated neural inference' },
-            { icon: MessageSquare, text: 'Two-way TTS and live speech captions' },
+            { icon: Lock, text: 'Zero cloud video streaming — 100% on-device privacy' },
+            { icon: Cpu, text: 'WebAssembly SIMD accelerated neural inference' },
+            { icon: MessageSquare, text: 'Two-way text-to-speech & live conversation captions' },
           ].map(({ icon: Icon, text }) => (
             <span
               key={text}
-              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 shadow-sm"
+              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 shadow-xs"
             >
               <Icon className="size-3.5 text-accent" />
               {text}
@@ -68,11 +61,11 @@ export function OverviewPanel({
             variant="primary"
             size="lg"
             onClick={() => {
-              onNavigate('live');
+              onNavigate('studio');
             }}
           >
-            <Camera className="size-5" />
-            Launch Live Communication
+            <MessageSquare className="size-5" />
+            Launch Two-Way Studio
             <ArrowRight className="size-4 ml-1" />
           </Button>
 
@@ -80,22 +73,22 @@ export function OverviewPanel({
             variant="secondary"
             size="lg"
             onClick={() => {
-              onNavigate('learn');
+              onNavigate('live');
             }}
           >
-            <GraduationCap className="size-5 text-accent" />
-            Practise ASL
+            <Camera className="size-5 text-accent" />
+            Isolated Sign Recognition
           </Button>
 
           <Button
             variant="outline"
             size="lg"
             onClick={() => {
-              onNavigate('dictionary');
+              onNavigate('learn');
             }}
           >
-            <BookOpen className="size-5 text-ink-muted" />
-            Explore Dictionary
+            <GraduationCap className="size-5 text-ink-muted" />
+            ASL Learning Centre
           </Button>
         </div>
       </div>
@@ -104,19 +97,19 @@ export function OverviewPanel({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           {
-            label: 'Vocabulary Size',
+            label: 'ASL Vocabulary',
             value: `${shippedCount} Signs`,
-            detail: 'Verified isolated American Sign Language gestures',
+            detail: 'Verified isolated American Sign Language classes',
           },
           {
             label: 'Landmark Topology',
             value: '543 Points',
-            detail: 'MediaPipe Holistic face, hands & upper pose',
+            detail: 'MediaPipe Holistic face mesh, hands & pose',
           },
           {
-            label: 'Latency & Bandwidth',
+            label: 'Inference Latency',
             value: '< 25 ms',
-            detail: 'Zero network traffic for recognition or speech',
+            detail: 'Zero cloud latency; on-device WASM SIMD',
           },
           {
             label: 'Held-Out Accuracy',
@@ -138,14 +131,14 @@ export function OverviewPanel({
         ))}
       </div>
 
-      {/* Modular Product Architecture */}
+      {/* Modular Product Architecture Navigation */}
       <div>
         <div className="border-b border-line pb-2 mb-4">
           <h2 className="text-xl font-bold tracking-tight text-ink">
-            Assistive Product Architecture
+            Assistive Technology Modules
           </h2>
           <p className="text-xs text-ink-muted mt-0.5">
-            Six cohesive modules designed for expressive communication, education, and accessibility
+            Engineered for fluid everyday communication, active learning, and accessibility
             research.
           </p>
         </div>
@@ -153,52 +146,52 @@ export function OverviewPanel({
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[
             {
-              title: 'Live Communication',
-              desc: 'Camera tracking, top-3 predictions, confidence verification, editable sentence builder, text-to-speech, and live speech-to-text captions.',
+              title: 'Two-Way Communication Studio',
+              desc: 'Dedicated split-screen dialogue: Deaf signers sign to speak aloud; hearing partners speak to generate live high-contrast captions.',
+              action: () => {
+                onNavigate('studio');
+              },
+              btnText: 'Open Studio',
+            },
+            {
+              title: 'Live Isolated Recognition',
+              desc: 'High-framerate camera tracking, top-3 predictions, honest "Not sure" calibration, editable sentence builder, and audio replay.',
               action: () => {
                 onNavigate('live');
               },
-              btnText: 'Open Live Studio',
+              btnText: 'Open Recognition',
             },
             {
-              title: 'Learning Centre',
-              desc: 'Guided ASL practice with real-time feedback scored directly against model logits, Sign-of-the-Day, and curated vocabulary categories.',
+              title: 'ASL Learning Centre',
+              desc: 'Curated vocabulary tracks (Greetings, Emergency, Family, Everyday), daily Sign of the Day, and webcam practice scored against neural logits.',
               action: () => {
                 onNavigate('learn');
               },
               btnText: 'Start Learning',
             },
             {
+              title: 'Personal Vocabulary & Flashcards',
+              desc: 'Bookmark key signs, review with interactive flip flashcards, and access custom taught gestures persisted locally.',
+              action: () => {
+                onNavigate('vocabulary');
+              },
+              btnText: 'Open Vocabulary',
+            },
+            {
               title: 'Sign Dictionary',
-              desc: 'Searchable 250-sign index with held-out model accuracy ratings, alphabet navigation, and direct links to verified demonstration clips.',
+              desc: 'Searchable 250-sign index with held-out model accuracy ratings, alphabet filters, and direct links to verified reference clips.',
               action: () => {
                 onNavigate('dictionary');
               },
-              btnText: 'View Signs',
+              btnText: 'Browse Dictionary',
             },
             {
-              title: 'Teach M-ABLE',
-              desc: 'Few-shot custom gesture studio allowing users to record 3–5 takes and classify personalised gestures using 128-d prototype embeddings.',
+              title: 'Progress & Learning Analytics',
+              desc: 'Objective mastery metrics, category completion rates, daily streak counts, and conversation volume history.',
               action: () => {
-                onNavigate('teach');
+                onNavigate('analytics');
               },
-              btnText: 'Teach Gestures',
-            },
-            {
-              title: 'Communication History',
-              desc: 'Privacy-conscious local archive of confirmed conversations, word counts, timestamps, audio playback, and structured exports.',
-              action: () => {
-                onNavigate('history');
-              },
-              btnText: 'View History',
-            },
-            {
-              title: 'Settings & Accessibility',
-              desc: 'Comprehensive comfort controls including theme, font sizing, reduced motion, high contrast, camera device selection, and TTS tuning.',
-              action: () => {
-                onNavigate('settings');
-              },
-              btnText: 'Configure',
+              btnText: 'View Insights',
             },
           ].map((mod) => (
             <Card
@@ -225,6 +218,19 @@ export function OverviewPanel({
         </div>
       </div>
 
+      {/* Honest Capability Boundary Note */}
+      <Card className="p-5 border-warn-border bg-warn-soft/40">
+        <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+          <span>Scope of Artificial Intelligence in M-ABLE</span>
+        </h3>
+        <p className="mt-1.5 text-xs text-ink-muted leading-relaxed">
+          M-ABLE recognizes <strong>isolated</strong> sign language gestures from a verified
+          250-class vocabulary. It is not a continuous natural ASL grammatical translator and does
+          not replace human certified ASL interpreters. Signs are calibrated to display &ldquo;Not
+          sure&rdquo; rather than outputting confident false labels when movement is ambiguous.
+        </p>
+      </Card>
+
       {/* Engineering Provenance & Attributions */}
       <Card className="p-6 bg-surface-muted/40 border-line">
         <h3 className="text-base font-bold text-ink mb-2">Research Provenance & Attribution</h3>
@@ -238,8 +244,7 @@ export function OverviewPanel({
           >
             {ORIGINAL_PROJECT} by {ORIGINAL_AUTHOR}
           </a>{' '}
-          (MIT License), which demonstrated client-side ONNX execution with MediaPipe holistic
-          landmark tracking. Neural weights were trained on the{' '}
+          (MIT License). Neural weights were trained on the{' '}
           <a
             href={DATASET_URL}
             target="_blank"

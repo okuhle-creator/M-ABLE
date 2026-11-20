@@ -1,5 +1,7 @@
-import { ExternalLink, GraduationCap, Search } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Bookmark, ExternalLink, Play, Search } from 'lucide-react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
+import { ASL_CATEGORIES, learningStore } from '../lib/learning-store';
+import { showToast } from '../lib/toast-store';
 import { dictionaryUrl, type SignLabel } from '../ml/meta';
 import { Badge, Card, Percent } from './ui';
 
@@ -12,7 +14,10 @@ export function SignDictionary({
 }) {
   const [query, setQuery] = useState('');
   const [selectedLetter, setSelectedLetter] = useState<string>('All');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [onlyShipped, setOnlyShipped] = useState(true);
+
+  const learningState = useSyncExternalStore(learningStore.subscribe, learningStore.getSnapshot);
 
   // Alphabet letters present in the vocabulary
   const alphabet = useMemo(() => {
@@ -24,12 +29,28 @@ export function SignDictionary({
     return ['All', ...Array.from(letters).sort()];
   }, [labels]);
 
+  const categoryMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const cat of ASL_CATEGORIES) {
+      map.set(
+        cat.id,
+        cat.signs.map((s) => s.toLowerCase()),
+      );
+    }
+    return map;
+  }, []);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const catSigns = selectedCategory !== 'All' ? categoryMap.get(selectedCategory) : null;
+
     return labels.filter((item) => {
       if (onlyShipped && !item.shipped) return false;
       if (selectedLetter !== 'All') {
         if (!item.label.toUpperCase().startsWith(selectedLetter)) return false;
+      }
+      if (catSigns && !catSigns.includes(item.sign.toLowerCase())) {
+        return false;
       }
       if (q) {
         return (
@@ -40,25 +61,70 @@ export function SignDictionary({
       }
       return true;
     });
-  }, [labels, query, selectedLetter, onlyShipped]);
+  }, [labels, query, selectedLetter, selectedCategory, onlyShipped, categoryMap]);
+
+  const handleToggleBookmark = (signName: string, label: string) => {
+    const isNowBookmarked = learningStore.toggleBookmark(signName);
+    showToast(
+      isNowBookmarked
+        ? `Added "${label}" to Personal Vocabulary`
+        : `Removed "${label}" from Personal Vocabulary`,
+      'info',
+    );
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-2xl font-bold tracking-tight text-ink">Sign Dictionary</h2>
+          <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+            Sign Dictionary
+          </h1>
           <span className="text-xs font-mono text-ink-muted">
             {filtered.length} of {labels.length} isolated ASL signs
           </span>
         </div>
         <p className="mt-1 text-sm text-ink-muted max-w-2xl leading-relaxed">
-          The complete verified vocabulary supported by M-ABLE’s on-device neural model, trained on
-          the Google Isolated Sign Language Recognition corpus. Each sign links to verified external
-          reference demonstrations.
+          The complete verified vocabulary supported by M-ABLE&rsquo;s on-device neural model,
+          trained on the Google Isolated Sign Language Recognition corpus. Each sign links to
+          verified external reference demonstrations.
         </p>
       </div>
 
-      {/* Search and Filters */}
+      {/* Category Filter Pills */}
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedCategory('All');
+          }}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+            selectedCategory === 'All'
+              ? 'bg-accent text-accent-ink font-semibold'
+              : 'border border-line bg-surface text-ink hover:bg-surface-muted'
+          }`}
+        >
+          All Signs ({labels.length})
+        </button>
+        {ASL_CATEGORIES.map((cat) => (
+          <button
+            key={cat.id}
+            type="button"
+            onClick={() => {
+              setSelectedCategory(cat.id);
+            }}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+              selectedCategory === cat.id
+                ? 'bg-accent text-accent-ink font-semibold'
+                : 'border border-line bg-surface text-ink hover:bg-surface-muted'
+            }`}
+          >
+            {cat.title} ({cat.signs.length})
+          </button>
+        ))}
+      </div>
+
+      {/* Search and Checkbox */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-ink-subtle pointer-events-none" />
@@ -82,7 +148,7 @@ export function SignDictionary({
             }}
             className="rounded border-line accent-accent"
           />
-          <span>Shipped models only</span>
+          <span>Shipped vocabulary only</span>
         </label>
       </div>
 
@@ -109,59 +175,80 @@ export function SignDictionary({
       {/* Signs Grid */}
       {filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line p-8 text-center text-sm text-ink-muted">
-          No signs matched your search criteria. Try a different search term or letter.
+          No signs matched your search criteria. Try a different search term or category.
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((item) => (
-            <Card
-              key={item.index}
-              className="p-4 flex flex-col justify-between hover:border-accent-border transition-colors"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-lg font-bold tracking-tight text-ink">{item.label}</h3>
-                  <span className="text-xs font-mono text-ink-subtle">#{item.index}</span>
+          {filtered.map((item) => {
+            const isBookmarked = learningState.bookmarkedSigns.includes(item.sign.toLowerCase());
+
+            return (
+              <Card
+                key={item.index}
+                className="p-4 flex flex-col justify-between hover:border-accent-border transition-colors"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-lg font-bold tracking-tight text-ink capitalize">
+                      {item.label}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleToggleBookmark(item.sign, item.label);
+                      }}
+                      className="text-ink-muted hover:text-accent p-1 cursor-pointer"
+                      title={
+                        isBookmarked
+                          ? 'Remove from Personal Vocabulary'
+                          : 'Save to Personal Vocabulary'
+                      }
+                    >
+                      <Bookmark
+                        className={`size-4 ${isBookmarked ? 'fill-accent text-accent' : ''}`}
+                      />
+                    </button>
+                  </div>
+                  {item.heldOutTop1 !== null ? (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <Badge variant={item.heldOutTop1 >= 0.75 ? 'success' : 'neutral'}>
+                        <Percent value={item.heldOutTop1} /> test accuracy
+                      </Badge>
+                    </div>
+                  ) : (
+                    <div className="mt-1">
+                      <Badge variant="neutral">Untrained benchmark</Badge>
+                    </div>
+                  )}
                 </div>
-                {item.heldOutTop1 !== null ? (
-                  <div className="mt-1 flex items-center gap-1.5">
-                    <Badge variant={item.heldOutTop1 >= 0.75 ? 'success' : 'neutral'}>
-                      <Percent value={item.heldOutTop1} /> test accuracy
-                    </Badge>
-                  </div>
-                ) : (
-                  <div className="mt-1">
-                    <Badge variant="neutral">Untrained benchmark</Badge>
-                  </div>
-                )}
-              </div>
 
-              <div className="mt-4 flex items-center justify-between gap-2 pt-3 border-t border-line/50 text-xs">
-                <a
-                  href={dictionaryUrl(item)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
-                >
-                  Demonstration
-                  <ExternalLink className="size-3" />
-                </a>
-
-                {onPracticeSign ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onPracticeSign(item.index);
-                    }}
-                    className="cursor-pointer inline-flex items-center gap-1 font-medium text-ink-muted hover:text-ink"
+                <div className="mt-4 flex items-center justify-between gap-2 pt-3 border-t border-line/50 text-xs">
+                  <a
+                    href={dictionaryUrl(item)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
                   >
-                    <GraduationCap className="size-3.5" />
-                    Practise
-                  </button>
-                ) : null}
-              </div>
-            </Card>
-          ))}
+                    Demonstration
+                    <ExternalLink className="size-3" />
+                  </a>
+
+                  {onPracticeSign ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPracticeSign(item.index);
+                      }}
+                      className="cursor-pointer inline-flex items-center gap-1 font-medium text-ink-muted hover:text-ink"
+                    >
+                      <Play className="size-3" />
+                      Practice
+                    </button>
+                  ) : null}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
