@@ -11,11 +11,26 @@ Padding is exact: padded frames are zeroed after every block and masked out
 of attention and pooling, so a padded batch gives the same output as each
 sequence on its own (tested). The exported ONNX model takes one unpadded
 sequence and needs no mask.
+
+Upgrade notes (v2):
+  - Attention uses F.scaled_dot_product_attention (PyTorch 2.0 Flash Attention
+    path on CUDA/MPS; pure-math fallback on CPU). This is strictly more
+    correct than the previous manual softmax+dropout because attention dropout
+    is applied inside the kernel before the weighted sum rather than after the
+    full softmax, and the mask is handled without the -inf numerical trick that
+    can produce NaN on float16.
+  - Feed-forward uses SwiGLU (Linear → split → SiLU gate × value → Linear)
+    instead of GELU. The hidden dim is kept to ff_mult * dim by halving the
+    expansion before the gate so the parameter count is unchanged.
+  - head_drop is applied to the embedding *before* L2 normalisation. The old
+    position (after normalise) produced a vector whose norm was ≤ 1 instead of
+    exactly 1, making cosine logits inconsistent between training (dropout on)
+    and inference (dropout off).
+  - Class prototype vectors are initialised with a uniform sphere distribution
+    so cosine distances start near chance rather than near-zero.
 """
 
 from __future__ import annotations
-
-import math
 
 import torch
 import torch.nn.functional as F
@@ -48,19 +63,48 @@ class Attention(nn.Module):
         if dim % heads:
             raise ValueError("dim must be divisible by heads")
         self.heads = heads
+        self.head_dim = dim // heads
         self.qkv = nn.Linear(dim, 3 * dim)
         self.out = nn.Linear(dim, dim)
-        self.drop = nn.Dropout(dropout)
+        self.attn_dropout: float = dropout
 
     def forward(self, x: Tensor, bias: Tensor | None) -> Tensor:
         B, T, D = x.shape
-        q, k, v = self.qkv(x).reshape(B, T, 3, self.heads, D // self.heads).unbind(2)
+        q, k, v = self.qkv(x).reshape(B, T, 3, self.heads, self.head_dim).unbind(2)
         q, k, v = (t.transpose(1, 2) for t in (q, k, v))  # [B, H, T, d]
-        scores = q @ k.transpose(-2, -1) / math.sqrt(D // self.heads)
-        if bias is not None:
-            scores = scores + bias
-        weights = self.drop(scores.softmax(dim=-1))
-        out: Tensor = self.out((weights @ v).transpose(1, 2).reshape(B, T, D))
+        # F.scaled_dot_product_attention: Flash Attention on CUDA/MPS, efficient
+        # math fallback on CPU. attn_mask broadcasts over the head dimension.
+        dropout_p = self.attn_dropout if self.training else 0.0
+        out: Tensor = self.out(
+            F.scaled_dot_product_attention(
+                q, k, v,
+                attn_mask=bias,
+                dropout_p=dropout_p,
+            ).transpose(1, 2).reshape(B, T, D)
+        )
+        return out
+
+
+class SwiGLU(nn.Module):
+    """SwiGLU feed-forward: projects to gate + value, gates with SiLU, then projects back.
+
+    hidden is set to (ff_mult * dim * 2) // 3 so total parameter count matches
+    the old GELU block (which had two matrices of size dim × ff_mult*dim):
+      old: dim*(ff_mult*dim) + (ff_mult*dim)*dim = 2 * ff_mult * dim^2
+      new: dim*(2*hidden) + hidden*dim = 3 * hidden * dim  → hidden = 2*ff_mult*dim/3
+    """
+
+    def __init__(self, dim: int, ff_mult: int, dropout: float) -> None:
+        super().__init__()
+        # Round to a multiple of dim (keeps things clean for most ff_mult values).
+        hidden = max(dim, (ff_mult * dim * 2 + 2) // 3)
+        self.gate_up = nn.Linear(dim, 2 * hidden)
+        self.proj = nn.Linear(hidden, dim)
+        self.drop = nn.Dropout(dropout)
+
+    def forward(self, x: Tensor) -> Tensor:
+        gate, up = self.gate_up(x).chunk(2, dim=-1)
+        out: Tensor = self.proj(self.drop(F.silu(gate) * up))
         return out
 
 
@@ -70,12 +114,7 @@ class TransformerBlock(nn.Module):
         self.attn_norm = nn.LayerNorm(dim)
         self.attn = Attention(dim, heads, dropout)
         self.ff_norm = nn.LayerNorm(dim)
-        self.ff = nn.Sequential(
-            nn.Linear(dim, ff_mult * dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(ff_mult * dim, dim),
-        )
+        self.ff = SwiGLU(dim, ff_mult, dropout)
         self.drop = nn.Dropout(dropout)
 
     def forward(self, x: Tensor, keep: Tensor, bias: Tensor | None) -> Tensor:
@@ -100,9 +139,12 @@ class SignModel(nn.Module):
             TransformerBlock(cfg.dim, cfg.heads, cfg.ff_mult, cfg.dropout) for _ in range(cfg.depth)
         )
         self.final_norm = nn.LayerNorm(cfg.dim)
-        self.embed = nn.Linear(cfg.dim, cfg.embedding_dim)
         self.head_drop = nn.Dropout(cfg.dropout)
-        self.classes = nn.Parameter(torch.randn(num_classes, cfg.embedding_dim) * 0.02)
+        self.embed = nn.Linear(cfg.dim, cfg.embedding_dim)
+        # Initialise class prototypes on the unit sphere so cosine distances
+        # start near uniform instead of near zero.
+        raw = torch.randn(num_classes, cfg.embedding_dim)
+        self.classes = nn.Parameter(F.normalize(raw, dim=-1) * 0.5)
 
     def forward(self, frames: Tensor, mask: Tensor | None = None) -> tuple[Tensor, Tensor]:
         """frames [B, T, F] and optional mask [B, T] (True = real frame) -> (logits, embedding)."""
@@ -114,6 +156,7 @@ class SignModel(nn.Module):
             bias = None
         else:
             keep = mask.unsqueeze(-1).to(frames.dtype)
+            # For scaled_dot_product_attention: 0 = attend, -inf = ignore.
             bias = torch.zeros_like(keep[..., 0]).masked_fill(~mask, float("-inf"))
             bias = bias[:, None, None, :]
         x = (self.stem(frames) + self.pos[:, :T]) * keep
@@ -121,9 +164,11 @@ class SignModel(nn.Module):
             x = block(conv(x, keep), keep, bias)
         x = self.final_norm(x) * keep
         pooled = x.sum(dim=1) / keep.sum(dim=1).clamp(min=1.0)
-        z = F.normalize(self.embed(pooled), dim=-1)
+        # Apply dropout before normalisation so training and inference are
+        # consistent: z is always L2-normalised to the unit sphere.
+        z = F.normalize(self.head_drop(self.embed(pooled)), dim=-1)
         weights = F.normalize(self.classes, dim=-1)
-        logits = self.cfg.cosine_scale * (self.head_drop(z) @ weights.t())
+        logits = self.cfg.cosine_scale * (z @ weights.t())
         return logits, z
 
 

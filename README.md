@@ -10,150 +10,201 @@
 
 ---
 
-## Overview
+## 1. Product Overview
 
-**M-ABLE** is a client-side, browser-native assistive communication platform designed for individuals who communicate using sign language, educators, researchers, and accessibility evaluators. 
+**M-ABLE** is a client-side, browser-native assistive communication platform designed for individuals who communicate using sign language, educators, speech-language pathologists, researchers, and accessibility evaluators. 
 
-M-ABLE transforms real-time webcam video into recognized American Sign Language (ASL) isolated signs using lightweight computer vision and neural inference running directly in the visitor's browser. It features a complete communication suite including sentence construction, speech synthesis (TTS), accessible conversation captions, interactive sign language practice, and personalized few-shot gesture adaptation.
+M-ABLE transforms real-time webcam video into recognized American Sign Language (ASL) isolated signs using lightweight computer vision and neural inference running directly in the visitor's browser. It features a complete communication suite including sentence construction, text-to-speech synthesis (TTS), live two-way conversation partner captions, interactive sign language practice, and personalized few-shot gesture adaptation.
 
-### Core Capabilities
+### Problem Statement
 
-- **Real-Time Isolated Sign Recognition:** Recognizes 250 isolated ASL signs at up to 30 fps with calibrated confidence scoring.
-- **Sentence Builder & Speech Synthesis:** Assemble recognized signs into sentences, edit phrases in real time, and vocalize them aloud via the Web Speech API.
-- **Conversation Captions:** High-contrast, large-format live captions designed for two-way accessibility in noisy or quiet environments.
-- **Practice Studio:** Interactive sign language learning with immediate score feedback benchmarked against true model confidence.
-- **Teach Your Own Gestures:** Few-shot prototype embedding adaptation allowing users to train personal or non-standard gestures using 3–5 takes, persisted in local IndexedDB.
-- **Sign Dictionary:** Searchable reference index of all 250 supported signs with execution tips and one-click practice launch.
-- **Strict Privacy-by-Design:** 100% on-device processing. No webcam video, landmark coordinates, or voice audio ever leaves the browser. Zero telemetry, zero external trackers, zero accounts required.
+Over 70 million Deaf and hard-of-hearing individuals worldwide use sign language as their primary or preferred language. However, communication barriers persist in everyday environments—healthcare clinics, service counters, educational spaces, and workplace meetings—where conversation partners often lack sign language fluency. Conventional digital solutions frequently suffer from:
+1. **Severe Privacy Hazards:** Cloud-reliant systems upload continuous webcam video streams of private conversations and personal environments to remote servers.
+2. **Bandwidth Dependency & High Latency:** Video streaming requires high-speed connectivity and introduces latency unsuitable for fluid conversational turns.
+3. **Impersonal Vocabulary:** Most systems fail to support idiosyncratic, regional, or personalized gestures used by individuals with motor or speech differences.
+
+### Objectives
+
+- **Democratize Accessible Communication:** Enable instant, browser-based sign language translation on everyday laptops, tablets, and smartphones without app store installations or account logins.
+- **Enforce Absolute Privacy:** Guarantee 100% on-device processing. No camera frames, landmark coordinates, or voice audio ever leave the user's hardware.
+- **Bridge Two-Way Dialogue:** Provide a complete round-trip communication system where signers build sentences that M-ABLE speaks aloud, and hearing partners speak while M-ABLE transcribes live captions.
+- **Facilitate Education & Adaptation:** Empower hearing parents and allies to learn ASL interactively with objective feedback, while allowing signers to teach M-ABLE custom gestures via few-shot neural embeddings.
 
 ---
 
-## Technical Architecture
+## 2. Technical Architecture & Technologies
 
 M-ABLE separates computer vision landmark extraction, feature engineering, and neural inference across dedicated background Web Workers to guarantee 60 fps main-thread UI responsiveness:
 
 ```mermaid
 flowchart LR
-  cam[Camera / getUserMedia] -->|ImageBitmap| mp
-  subgraph tracker [Tracker Web Worker]
-    mp[MediaPipe Holistic<br/>543 landmarks per frame]
+  cam["Camera / getUserMedia"] -->|ImageBitmap| mp
+  subgraph tracker ["Tracker Web Worker"]
+    mp["MediaPipe Holistic<br/>543 landmarks per frame"]
   end
-  mp --> seg[Segmenter<br/>Motion & Rest Detection]
-  replay[Pre-recorded Clips] --> seg
-  seg --> feat[Features Normalisation<br/>Pose, Hands, Lips<br/>30 fps Resampling]
+  mp --> seg["Segmenter<br/>Motion & Rest Detection"]
+  replay["Pre-recorded Clips"] --> seg
+  seg --> feat["Features Normalisation<br/>Pose, Hands, Lips<br/>30 fps Resampling"]
   feat --> model
-  subgraph inference [Inference Web Worker]
-    model[ONNX Runtime WASM<br/>1.4M Param Conv + Transformer]
+  subgraph inference ["Inference Web Worker"]
+    model["ONNX Runtime WASM<br/>1.4M Param Conv + Transformer"]
   end
-  model -->|Logits| decide[Calibrated Decision Engine<br/>Top-3 Guesses / Not Sure]
-  model -->|Embedding| teach[Cosine Prototype Matcher<br/>Teach Custom Gestures]
-  teach <--> idb[(Browser IndexedDB)]
-  decide --> ui[Sentence Builder<br/>Speech Synthesis<br/>Live Captions]
+  model -->|Logits| decide["Calibrated Decision Engine<br/>Top-3 Guesses / Not Sure"]
+  model -->|Embedding| teach["Cosine Prototype Matcher<br/>Teach Custom Gestures"]
+  teach <--> idb[("Browser IndexedDB")]
+  decide --> ui["Sentence Builder<br/>Speech Synthesis (TTS)<br/>Two-Way Speech Captions"]
 ```
 
-### ML Pipeline & Provenance
+### Technology Stack
 
-- **Model Architecture:** 1.4M-parameter temporal convolutional network combined with transformer encoder layers.
-- **Inference Runtime:** ONNX Runtime WebAssembly (WASM SIMD).
-- **Landmark Extraction:** MediaPipe Holistic landmarker extracting 543 spatial coordinates per frame (hands, pose, and lips).
-- **Training Foundation:** Google Isolated Sign Language Recognition dataset (asl-signs, Kaggle CC BY 4.0), comprising 94k clips across 21 signers. Shipped model achieves 72.1% top-1 and 88.1% top-5 accuracy across held-out evaluation signers.
-- **Custom Gesture Engine:** Nearest prototype matching in the model's bottleneck embedding space (88.7% accuracy with 8 gestures at 3 takes each).
+| Layer | Technologies & Runtimes |
+|---|---|
+| **Frontend Framework** | React 19, TypeScript, Vite |
+| **Styling & Design System** | Tailwind CSS v4, Custom Editorial Accessible Palette (Warm Ivory & Charcoal with Muted Sage/Teal accents) |
+| **Computer Vision Engine** | Google MediaPipe Tasks Vision (Holistic 543 spatial landmarks) |
+| **Neural Runtime** | Microsoft ONNX Runtime Web (WebAssembly SIMD-threaded) |
+| **Icons & Visuals** | Lucide React |
+| **Speech Services** | Web Speech API (`SpeechSynthesis` and `SpeechRecognition`) |
+| **Client Storage** | IndexedDB (`fake-indexeddb` in tests) & `localStorage` |
+| **Quality Assurance** | Vitest, ESLint (strict type-checked), Playwright, Prettier |
 
 ---
 
-## Deployment to GitHub Pages
+## 3. AI Recognition Workflow
 
-M-ABLE is configured for automated, single-click continuous deployment to GitHub Pages using the official GitHub Actions workflow.
+1. **Kinematic Landmark Extraction:**
+   Every incoming camera frame is transferred as an zero-copy `ImageBitmap` to the Tracker Web Worker. MediaPipe Holistic detects 543 landmarks spanning hands (42 points), pose (33 points), and facial lip contour (40 points).
+2. **Temporal Segmentation & Rest Detection:**
+   The Segmenter monitors hand elevation and velocity relative to shoulder baselines. When hands rise and articulate, frames buffer into an active candidate sequence. When hands rest or drop, the sequence completes and dispatches for classification.
+3. **Geometric Feature Normalization:**
+   Landmark coordinates are centered around shoulder midpoints, normalized by shoulder span distance, and horizontally standardized so that signing hands articulate predictably regardless of left/right dominance. Sequences are resampled to a consistent 30 FPS.
+4. **Transformer Inference:**
+   The normalized sequence enters the 1.4M-parameter neural model running in the Inference Worker via ONNX Runtime WebAssembly. The model computes logits over the 250 vocabulary classes and extracts a 128-dimensional bottleneck embedding.
+5. **Calibrated Decision & Uncertainty Handling:**
+   Softmax probabilities are temperature-scaled and evaluated against empirical confidence thresholds derived from held-out signers. If the top probability falls below the calibrated threshold, or if shoulder visibility is partial, M-ABLE outputs an honest "Not sure" with contextual user guidance.
 
-### 1. Configure GitHub Repository Settings
+---
 
-To enable deployment, the repository owner must configure GitHub Pages to use GitHub Actions as the deployment source:
+## 4. Supported Capabilities
 
-1. Navigate to the GitHub repository: `https://github.com/okuhle-creator/M-ABLE`
-2. Click **Settings** (top navigation).
-3. In the left sidebar, click **Pages** (under the "Code and automation" section).
+- **Isolated Sign Recognition:** Real-time recognition across a verified vocabulary of 250 isolated ASL signs.
+- **Interactive Sentence Builder:** Assembles recognized signs into an editable text buffer with quick-action punctuation, space insertion, undo, and clear controls.
+- **Voice Output (Text-to-Speech):** Vocalizes assembled sentences using browser-native speech synthesis with configurable voices, speed, and pitch.
+- **Conversation Captions (Speech-to-Text):** Transcribes spoken dialogue from hearing conversation partners onto the screen, enabling seamless two-way communication.
+- **ASL Learning Centre:** Interactive practice mode with daily "Sign of the Day", curated categories (Greetings, Family, Nature, Actions), and real-time confidence scores.
+- **Searchable Sign Dictionary:** Complete directory of all 250 supported signs featuring held-out test accuracy metrics, category filters, and verified external video demonstration links (Signing Savvy).
+- **Teach Your Own Gestures:** Few-shot prototype studio enabling users to record 3–5 takes of custom gestures, classified via cosine similarity against stored 128-d embeddings.
+- **Communication History:** Privacy-first local archive of confirmed conversations with audio replay, clipboard copying, and JSON/TXT export.
+- **Accessibility & Sensory Controls:** Includes Light (Warm Ivory), Dark (Charcoal), and System themes, text size scaling (Standard, Large, Extra Large), Reduced Motion overrides, and High Contrast mode.
+
+---
+
+## 5. Known Limitations
+
+- **Isolated vs. Continuous ASL:** M-ABLE recognizes **isolated** sign language gestures. It is not a continuous natural ASL sentence translator and does not parse complex spatial grammar, non-manual facial grammatical markers, or fluid fingerspelling sequences.
+- **Vocabulary Scope:** The onboard neural model is trained strictly on 250 specific sign classes from the Kaggle `asl-signs` corpus. Signs outside this vocabulary require training via the custom gesture studio.
+- **Camera Framing & Illumination:** Hand tracking requires both hands and upper shoulders to remain visible within the camera frame. Extreme backlighting or low-light conditions may degrade landmark detection.
+- **Browser Speech API Compatibility:** Text-to-Speech (`SpeechSynthesis`) is supported across all major modern browsers. Speech-to-Text Captions (`SpeechRecognition`) require Chromium-based browsers (Chrome, Edge) or Safari.
+
+---
+
+## 6. Privacy & Security by Design
+
+- **Zero Cloud Upload:** Camera video is processed entirely in volatile browser memory. No video, image snapshots, or landmark coordinates are transmitted over any network socket.
+- **Strict Content Security Policy (CSP):** The production build injects a strict `<meta>` CSP (`default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'`) forbidding any external asset loading or third-party tracking.
+- **Zero Account or Telemetry Burden:** No analytics, user profiling, cookies, or telemetry libraries are bundled.
+- **Local Sandbox Storage:** Taught custom gestures and communication transcripts are saved exclusively in the user's browser sandbox (IndexedDB and `localStorage`).
+
+---
+
+## 7. Local Development & Installation
+
+### Prerequisites
+
+- **Node.js 24+** (LTS recommended)
+- Modern browser supporting WebAssembly SIMD and WebRTC camera access (Chrome, Edge, Firefox, or Safari)
+
+### Quick Start
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/okuhle-creator/M-ABLE.git
+cd M-ABLE/web
+
+# 2. Install dependencies
+npm ci
+
+# 3. Start the local development server
+npm run dev
+```
+
+Open `http://localhost:5330/M-ABLE/` in your browser.
+
+### Quality Assurance & Testing Suite
+
+Execute the full suite of verification commands before committing changes:
+
+```bash
+# Typecheck TypeScript codebase
+npm run typecheck
+
+# Verify ESLint rules with zero-warning tolerance
+npm run lint
+
+# Execute full Vitest suite (135 tests)
+npm test
+
+# Build production bundle with verified asset checksums
+npm run build
+
+# Run end-to-end Playwright accessibility tests
+npm run test:e2e
+```
+
+---
+
+## 8. GitHub Pages Deployment Configuration
+
+M-ABLE is configured for continuous automated deployment to GitHub Pages via `.github/workflows/deploy.yml`.
+
+### One-Time Repository Setup
+
+To activate GitHub Pages for your fork or repository:
+
+1. Navigate to **GitHub** → your repository: `https://github.com/okuhle-creator/M-ABLE`
+2. Click **Settings** (top navigation bar).
+3. In the left sidebar, click **Pages** (under *Code and automation*).
 4. Under **Build and deployment** → **Source**, select **GitHub Actions** from the dropdown menu.
 
-### 2. Manual Trigger ("Run workflow")
+### Automated Publishing
 
-Once GitHub Actions is selected as the source, you can trigger a deployment anytime:
+Any commit pushed to the `m-able/development` branch triggers an automated build and deployment.
 
-1. Click the **Actions** tab at the top of the repository.
-2. In the left workflow list, select **Deploy M-ABLE to GitHub Pages**.
+### Manual Trigger ("Run workflow")
+
+You can also trigger a production deployment manually at any time:
+
+1. Navigate to the **Actions** tab in GitHub.
+2. Under the workflows list on the left, click **Deploy M-ABLE to GitHub Pages**.
 3. Click the **Run workflow** dropdown button on the right.
-4. Select the **`m-able/development`** branch (or target branch) and click **Run workflow**.
+4. Select branch **`m-able/development`** and click the green **Run workflow** button.
 
-The workflow (`.github/workflows/deploy.yml`) will:
-- Check out the repository.
-- Set up Node.js 24 with package caching.
-- Install dependencies (`npm ci`).
-- Run the unit test suite (`npm test`).
-- Execute production asset fetching and build with the `/M-ABLE/` base URL (`npm run build`).
-- Package and deploy `web/dist` directly to the `github-pages` environment.
-
-Once complete, your site will be accessible at:
+Once deployed, the live site is served at:
 ```
 https://okuhle-creator.github.io/M-ABLE/
 ```
 
 ---
 
-## Local Development
+## 9. Attribution & Licenses
 
-### Prerequisites
+- **Original Architecture & Pipeline:** Built upon the open-source foundation of [GestureSign](https://github.com/shashank11yadav/GestureSign) by [Shashank Yadav](https://www.shashankyadav.dev/) under the MIT License.
+- **Machine Learning Dataset:** [Google – Isolated Sign Language Recognition](https://www.kaggle.com/competitions/asl-signs) (Kaggle `asl-signs`), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+- **Landmark Extraction:** [Google MediaPipe Holistic](https://github.com/google/mediapipe) (Apache 2.0).
+- **Neural Runtime:** [Microsoft ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT License).
+- **Sign Demonstrations:** External reference links provided via [Signing Savvy](https://www.signingsavvy.com/).
 
-- **Node.js 24+** (LTS recommended)
-- Modern browser with WebAssembly SIMD and WebRTC camera access (Chrome, Edge, Firefox, or Safari)
+### License
 
-### Quick Start
-
-```bash
-# Clone the repository
-git clone https://github.com/okuhle-creator/M-ABLE.git
-cd M-ABLE/web
-
-# Install dependencies
-npm ci
-
-# Start the local development server
-npm run dev
-```
-
-Visit `http://localhost:5330/M-ABLE/` in your browser.
-
-### Quality Verification Commands
-
-| Command | Purpose |
-|---|---|
-| `npm test` | Runs the full Vitest suite (135+ tests covering ML, segmenter, features, session, and speech). |
-| `npm run typecheck` | Validates TypeScript types across the entire web application (`tsc -b`). |
-| `npm run lint` | Runs ESLint with zero-warning threshold (`eslint . --max-warnings 0`). |
-| `npm run format:check` | Verifies code styling via Prettier. |
-| `npm run build` | Compiles the production bundle into `web/dist` with verified assets. |
-| `npm run test:e2e` | Runs Playwright end-to-end accessibility and interaction tests. |
-| `npm run bench` | Runs browser landmark extraction benchmark suite. |
-
----
-
-## Privacy & Security
-
-- **Zero Cloud Video Ingestion:** Camera video streams are ingested strictly into local browser memory via `navigator.mediaDevices.getUserMedia` and piped to Web Workers as `ImageBitmap`.
-- **Strict Content Security Policy (CSP):** Strict CSP headers (`script-src 'self' 'wasm-unsafe-eval'`) prevent arbitrary remote code execution and third-party injection.
-- **Local Persistence Only:** Taught gestures and saved sentence histories are stored exclusively in browser IndexedDB and `localStorage`.
-
----
-
-## Attribution & Credits
-
-- **Core Foundation:** Built upon the [GestureSign](https://github.com/shashank11yadav/GestureSign) architecture originally created by [Shashank Yadav](https://shashankyadav.dev/) (MIT License).
-- **Dataset:** [Google – Isolated Sign Language Recognition](https://www.kaggle.com/competitions/asl-signs/data) (Kaggle asl-signs), licensed under CC BY 4.0.
-- **Landmark Engine:** [Google MediaPipe Holistic](https://github.com/google/mediapipe) (Apache 2.0).
-- **Neural Inference Engine:** [Microsoft ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT License).
-- **Sign Language Dictionaries:** Sign demonstrations and cross-references via [Signing Savvy](https://www.signingsavvy.com/).
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-The underlying Kaggle ASL dataset retains its [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) license.
+M-ABLE is released under the [MIT License](LICENSE).  
+Copyright (c) 2026 M-ABLE Contributors and Original Author Shashank Yadav.

@@ -1,8 +1,8 @@
-name: Pages
+name: Deploy M-ABLE to GitHub Pages (main)
 
-# Publishes the demo in web/ to https://shashank11yadav.github.io/GestureSign/.
-# The model files are committed in web/public/models; the Python pipeline does
-# not run here. Retrain locally (see the README) and commit the export.
+# Secondary publish trigger: any push to main also deploys to GitHub Pages.
+# The primary trigger is m-able/development in deploy.yml.
+# Both share the same concurrency group "pages" so they never race.
 
 on:
   push:
@@ -18,18 +18,18 @@ concurrency:
 
 jobs:
   build:
-    name: Build the demo
+    name: Build M-ABLE
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
@@ -38,15 +38,27 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run format:check && npm run lint
+
       - name: Unit tests
         run: npm test
 
       - name: Build
         run: npm run build
 
-      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Verify no test hooks in production build
+        run: '! grep -rl "__gesturesignTest" dist'
 
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: web/dist
 
@@ -63,4 +75,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
